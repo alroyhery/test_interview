@@ -1,7 +1,7 @@
 // routes/transaction.js
 const express = require('express');
 const pool = require('../db');
-const authMiddleware = require('../middlewares/authmiddleware');
+const authmiddleware = require('../middlewares/authmiddleware');
 const { v4: uuidv4 } = require('uuid');
 
 const router = express.Router();
@@ -18,76 +18,174 @@ const router = express.Router();
 */
 
 // Create transaction (protected)
-router.post('/purchase', authMiddleware, async (req, res) => {
+
+
+router.post('/transaction', authmiddleware, async (req, res) => {
   const conn = await pool.getConnection();
+  console.log("REQ BODY:", req.body);
+
   try {
     const id_regis = req.user.id_regis;
-    const { service, amount, price, customer_number, provider_code } = req.body;
+    const { service_code } = req.body;
 
-    // basic validation
-    if (!service || !price) return res.status(400).json({ error: 'service and price are required' });
-    const parsedPrice = Number(price);
-    if (isNaN(parsedPrice) || parsedPrice <= 0) return res.status(400).json({ error: 'price must be a positive number' });
+    if (!service_code) {
+      return res.status(400).json({
+        status: 102,
+        message: 'Service atau Layanan tidak ditemukan',
+        data: null
+      });
+    }
 
-    // Start transaction
     await conn.beginTransaction();
 
-    // Lock wallet row
-    const [walletRows] = await conn.execute('SELECT balance FROM wallets WHERE id_regis = ? FOR UPDATE', [id_regis]);
-    if (!walletRows.length) {
-      await conn.rollback();
-      return res.status(404).json({ error: 'Wallet not found' });
-    }
-
-    const currentBalance = Number(walletRows[0].balance);
-    if (currentBalance < parsedPrice) {
-      await conn.rollback();
-      return res.status(400).json({ error: 'Insufficient balance' });
-    }
-
-    const newBalance = currentBalance - parsedPrice;
-    await conn.execute('UPDATE wallets SET balance = ?, updated_at = ? WHERE id_regis = ?', [newBalance, new Date(), id_regis]);
-
-    // create transaction record
-    const trx_id = uuidv4();
-    const created_at = new Date();
-    await conn.execute(
-      'INSERT INTO transactions (trx_id, id_regis, service, provider_code, customer_number, amount, price, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [trx_id, id_regis, service, provider_code || null, customer_number || null, amount || null, parsedPrice, 'success', created_at]
+    // Ambil service info
+    const [serviceRows] = await conn.execute(
+      'SELECT service_code, service_name, service_tariff FROM services WHERE service_code = ?',
+      [service_code]
     );
 
-    // Commit
+    if (!serviceRows.length) {
+      await conn.rollback();
+      return res.status(400).json({
+        status: 102,
+        message: 'Service atau Layanan tidak ditemukan',
+        data: null
+      });
+    }
+
+    const service = serviceRows[0];
+    const amount = Number(service.service_tariff);
+
+    // Lock wallet
+    const [walletRows] = await conn.execute(
+      'SELECT balance FROM wallets WHERE id_regis = ? FOR UPDATE',
+      [id_regis]
+    );
+
+    if (!walletRows.length) {
+      await conn.rollback();
+      return res.status(404).json({
+        status: 104,
+        message: 'Wallet tidak ditemukan',
+        data: null
+      });
+    }
+
+    const balance = Number(walletRows[0].balance);
+
+    if (balance < amount) {
+      await conn.rollback();
+      return res.status(400).json({
+        status: 105,
+        message: 'Saldo tidak mencukupi',
+        data: null
+      });
+    }
+
+    const newBalance = balance - amount;
+    await conn.execute(
+      'UPDATE wallets SET balance = ?, updated_at = ? WHERE id_regis = ?',
+      [newBalance, new Date(), id_regis]
+    );
+
+    const trx_id = uuidv4();
+    const created_at = new Date();
+    const invoice_number = `INV${created_at.toISOString().replace(/[-:.TZ]/g, '')}-${Math.floor(Math.random() * 1000)}`;
+
+    await conn.execute(
+      `INSERT INTO transactions 
+       (trx_id, id_regis, service_code, transaction_type, amount, status, created_at, invoice_number)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [trx_id, id_regis, service_code, 'PAYMENT', amount, 'success', created_at, invoice_number]
+    );
+
     await conn.commit();
 
-    // For demo: we assume the external provider call succeeded.
-    // In real case, you'd call the provider and update transaction status accordingly.
+    return res.json({
+      status: 0,
+      message: 'Transaksi berhasil',
+      data: {
+        invoice_number,
+        service_code: service.service_code,
+        service_name: service.service_name,
+        transaction_type: 'PAYMENT',
+        total_amount: amount,
+        created_on: created_at
+      }
+    });
 
-    res.json({ message: 'Transaction successful', trx_id, balance: newBalance });
   } catch (err) {
     await conn.rollback();
     console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    return res.status(500).json({
+      status: 500,
+      message: 'Server error',
+      data: null
+    });
   } finally {
     conn.release();
   }
 });
+
 
 // Optional: get transaction detail
-router.get('/:trx_id', authMiddleware, async (req, res) => {
+router.get('/transaction/history', authmiddleware, async (req, res) => {
   const conn = await pool.getConnection();
   try {
-    const id_regis = req.user.id_regis;
-    const trx_id = req.params.trx_id;
+    const userId = req.user.id_regis; 
+    let { limit, offset } = req.query;
 
-    const [rows] = await conn.execute('SELECT * FROM transactions WHERE trx_id = ? AND id_regis = ?', [trx_id, id_regis]);
-    if (!rows.length) return res.status(404).json({ error: 'Transaction not found' });
-    res.json(rows[0]);
+    limit = limit ? parseInt(limit) : null; 
+    offset = offset ? parseInt(offset) : 0;
+
+    let query = `
+      SELECT 
+        t.invoice_number,
+        t.transaction_type,
+        s.service_name AS description,
+        t.amount AS total_amount,
+        t.created_at AS created_on
+      FROM transactions t
+      LEFT JOIN services s ON t.service_code = s.service_code
+      WHERE t.id_regis = ?
+      ORDER BY t.created_at DESC
+    `;
+
+    const params = [userId];
+
+    if (limit !== null) {
+      query += ` LIMIT ? OFFSET ?`;
+      params.push(limit, offset);
+    }
+
+    const [rows] = await conn.query(query, params);
+
+    return res.json({
+      status: 0,
+      message: "Get History Berhasil",
+      data: {
+        offset: offset || 0,
+        limit: limit || rows.length,
+        records: rows.map(r => ({
+          invoice_number: r.invoice_number,
+          transaction_type: r.transaction_type,
+          description: r.description || "",
+          total_amount: Number(r.total_amount),
+          created_on: r.created_on
+        }))
+      }
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    return res.status(500).json({
+      status: 99,
+      message: "Internal Server Error",
+      data: null
+    });
   } finally {
     conn.release();
   }
 });
+
 
 module.exports = router;

@@ -14,13 +14,13 @@ const router = express.Router();
 router.post('/register', async (req, res) => {
     const conn = await pool.getConnection();
     try {
-      const { name, email, password, phone } = req.body;
+      const { name, email, password } = req.body;
   
       // cek kalau semua field wajib diisi
-      if (!name || !email || !password || !phone) {
+      if (!name || !email || !password ) {
         return res.status(400).json({
           status: 102,
-          message: 'Parameter name, email, password, phone harus diisi'
+          message: 'Parameter name, email, password harus diisi'
         });
       }
   
@@ -28,7 +28,7 @@ router.post('/register', async (req, res) => {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) {
         return res.status(400).json({
-          status: 103,
+          status: 102,
           message: 'Format email tidak valid'
         });
       }
@@ -54,8 +54,8 @@ router.post('/register', async (req, res) => {
       const createdAt = new Date();
   
       const [result] = await conn.execute(
-        'INSERT INTO users (name, email, phone, password, created_at) VALUES (?, ?, ?, ?, ?)',
-        [name, email, phone, hashed, createdAt]
+        'INSERT INTO users (name, email, password, created_at) VALUES (?, ?, ?, ?)',
+        [name, email, hashed, createdAt]
       );
   
       const id_regis = result.insertId;
@@ -96,39 +96,98 @@ router.post('/login', async (req, res) => {
   const conn = await pool.getConnection();
   try {
     const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: 'email and password required' });
+
+    // Cek field wajib
+    if (!email) {
+      return res.status(400).json({
+        status: 102,
+        message: "Parameter email wajib diisi",
+        data: null
+      });
+    }
+    
+    if (!password) {
+      return res.status(400).json({
+        status: 103,
+        message: "Username atau password salah",
+        data: null
+      });
+    }
+    
+
+    // Validasi format email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        status: 102,
+        message: "Parameter email tidak sesuai format",
+        data: null
+      });
     }
 
+    // Password minimal 8 karakter
+    if (password.length < 8) {
+      return res.status(400).json({
+        status: 103,
+        message: "Username atau password salah",
+        data: null
+      });
+    }
+
+    // Cek user
     const [rows] = await conn.execute(
       'SELECT id_regis, name, email, password FROM users WHERE email = ?',
       [email]
     );
+
     if (!rows.length) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({
+        status: 103,
+        message: "Username atau password salah",
+        data: null
+      });
     }
 
     const user = rows[0];
     const isMatch = await bcrypt.compare(password, user.password);
+
     if (!isMatch) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({
+        status: 103,
+        message: "Username atau password salah",
+        data: null
+      });
     }
 
-    const token = jwt.sign({ id_regis: user.id_regis, email: user.email }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN });
+    // Generate token 12 jam
+    const token = jwt.sign(
+      { id_regis: user.id_regis, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "12h" }
+    );
 
+    // ✅ Sesuai format
     return res.json({
-      message: 'Login successful',
-      token,
-      user: { id_regis: user.id_regis, name: user.name, email: user.email }
+      status: 0,
+      message: "Login Sukses",
+      data: {
+        token: token
+      }
     });
 
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: 'Server error' });
+    return res.status(500).json({
+      status: 500,
+      message: "Internal Server Error",
+      data: null
+    });
   } finally {
     conn.release();
   }
 });
+
+
 
 
 
@@ -253,7 +312,7 @@ const storage = multer.diskStorage({
       if (!req.file) {
         return res.status(400).json({
           status: 102,
-          message: 'File wajib diupload dan harus jpeg/png'
+          message: 'Format Image tidak sesuai'
         });
       }
   

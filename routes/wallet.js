@@ -1,13 +1,13 @@
 // routes/wallet.js
 const express = require('express');
 const pool = require('../db');
-const authMiddleware = require('../middlewares/authmiddleware');
+const authmiddleware = require('../middlewares/authmiddleware');
 const { v4: uuidv4 } = require('uuid');
 
 const router = express.Router();
 
 // Cek saldo (protected)
-router.get('/balance', authMiddleware, async (req, res) => {
+router.get('/balance', authmiddleware, async (req, res) => {
   const conn = await pool.getConnection();
   try {
     const id_regis = req.user.id_regis;
@@ -24,43 +24,73 @@ router.get('/balance', authMiddleware, async (req, res) => {
 
 // Topup (protected)
 // Body: { amount: number, reference: optional }
-router.post('/topup', authMiddleware, async (req, res) => {
+router.post('/topup', authmiddleware, async (req, res) => {
   const conn = await pool.getConnection();
   try {
     const id_regis = req.user.id_regis;
-    let { amount, reference } = req.body;
-    amount = Number(amount);
-    if (!amount || amount <= 0) return res.status(400).json({ error: 'amount must be a positive number' });
+    let { top_up_amount, reference } = req.body;
 
-    // transaction start
-    await conn.beginTransaction();
+    top_up_amount = Number(top_up_amount);
 
-    // Update wallet balance with prepared statement
-    const [walletRows] = await conn.execute('SELECT balance FROM wallets WHERE id_regis = ? FOR UPDATE', [id_regis]);
-    if (!walletRows.length) {
-      await conn.rollback();
-      return res.status(404).json({ error: 'Wallet not found' });
+    if (!top_up_amount || top_up_amount <= 0) {
+      return res.status(400).json({
+        status: 102,
+        message: "Paramter amount hanya boleh angka dan tidak boleh lebih kecil dari 0",
+        data: null
+      });
     }
 
-    const newBalance = Number(walletRows[0].balance) + amount;
-    await conn.execute('UPDATE wallets SET balance = ?, updated_at = ? WHERE id_regis = ?', [newBalance, new Date(), id_regis]);
+    await conn.beginTransaction();
 
-    // insert topup record
+    const [walletRows] = await conn.execute(
+      'SELECT balance FROM wallets WHERE id_regis = ? FOR UPDATE',
+      [id_regis]
+    );
+
+    if (!walletRows.length) {
+      await conn.rollback();
+      return res.status(404).json({
+        status: 404,
+        message: "Wallet not found",
+        data: null
+      });
+    }
+
+    const newBalance = Number(walletRows[0].balance) + top_up_amount;
+
+    await conn.execute(
+      'UPDATE wallets SET balance = ?, updated_at = ? WHERE id_regis = ?',
+      [newBalance, new Date(), id_regis]
+    );
+
+    // Insert Topup Log
     const topupId = uuidv4();
     await conn.execute(
       'INSERT INTO topups (topup_id, id_regis, amount, reference, created_at) VALUES (?, ?, ?, ?, ?)',
-      [topupId, id_regis, amount, reference || null, new Date()]
+      [topupId, id_regis, top_up_amount, reference || null, new Date()]
     );
 
     await conn.commit();
-    res.json({ message: 'Topup success', topup_id: topupId, balance: newBalance });
+
+    return res.json({
+      status: 0,
+      message: "Top Up Balance berhasil",
+      data: { balance: newBalance }
+    });
+
   } catch (err) {
     await conn.rollback();
     console.error(err);
-    res.status(500).json({ error: 'Server error' });
+
+    return res.status(500).json({
+      status: 500,
+      message: "Server error",
+      data: null
+    });
   } finally {
     conn.release();
   }
 });
+
 
 module.exports = router;
