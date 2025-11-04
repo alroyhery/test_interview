@@ -6,7 +6,7 @@ const jwt = require('jsonwebtoken');
 const pool = require('../db');
 const authmiddleware = require('../middlewares/authmiddleware');
 
-require('dotenv').config();
+// require('dotenv').config();
 
 const router = express.Router();
 
