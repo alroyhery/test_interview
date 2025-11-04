@@ -29,10 +29,10 @@ app.use('/api', serviceRoutes);
 app.get('/', (req, res) => res.json({ status: 'ok' }));
 
 
-// const pool = require('./db');
-// pool.getConnection()
-//   .then(() => console.log("DB connected"))
-//   .catch(err => console.error("DB connection error:", err));
+const pool = require('./db');
+pool.getConnection()
+  .then(() => console.log("DB connected"))
+  .catch(err => console.error("DB connection error:", err));
 
 
 console.log("ENV PORT VALUE:", process.env.PORT);
