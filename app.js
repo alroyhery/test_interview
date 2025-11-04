@@ -19,8 +19,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true })); 
 
 // routes
-app.use('/api', authRoutes);
-app.use('/api', walletRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/wallet', walletRoutes);
 app.use('/api', transactionRoutes);
 app.use('/api', bannerRoutes);
 app.use('/api', serviceRoutes);
