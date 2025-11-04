@@ -25,5 +25,12 @@ app.use('/api', serviceRoutes);
 // health
 app.get('/', (req, res) => res.json({ status: 'ok' }));
 
+
+const pool = require('./db');
+pool.getConnection()
+  .then(() => console.log("DB connected"))
+  .catch(err => console.error("DB connection error:", err));
+
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
