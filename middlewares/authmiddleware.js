@@ -17,7 +17,7 @@ function authMiddleware(req, res, next) {
   if (parts.length !== 2 || parts[0] !== 'Bearer') {
     return res.status(401).json({
       status: 108,
-      message: 'Token tidak tidak valid atau kadaluwarsa'
+      message: 'Token tidak valid atau kadaluwarsa'
     });
   }
 
