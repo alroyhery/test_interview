@@ -1,6 +1,9 @@
 // app.js
 const express = require('express');
-require('dotenv').config();
+if (process.env.NODE_ENV !== "production") {
+  require("dotenv").config();
+}
+
 const bodyParser = require('body-parser');
 
 const authRoutes = require('./routes/auth');
