@@ -191,27 +191,33 @@ router.post('/login', async (req, res) => {
 
 
 
-//Profile
+// Profile
 router.get('/profile', authmiddleware, async (req, res) => {
-    try {
-      const conn = await pool.getConnection();
-      const { email } = req.user; // diambil dari token
-  
-      const [rows] = await conn.query(
-        'SELECT id_regis, name, email FROM users WHERE email = ? LIMIT 1',
-        [email]
-      );
-  
-      conn.release();
-  
-      if (!rows || rows.length === 0) {
-        return res.status(404).json({
-          status: false,
-          message: 'User not found'
-        });
-      }
-  
-      return res.json({
+  try {
+    const conn = await pool.getConnection();
+    const { email } = req.user; // diambil dari token
+
+    const [rows] = await conn.query(
+      'SELECT id_regis, name, email, profile_image FROM users WHERE email = ? LIMIT 1',
+      [email]
+    );
+
+    conn.release();
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({
+        status: false,
+        message: 'User not found'
+      });
+    }
+
+    // Pisahkan nama jadi first_name & last_name
+    const fullName = rows[0].name || '';
+    const nameParts = fullName.split(' ');
+    const first_name = nameParts[0] || '';
+    const last_name = nameParts.slice(1).join(' ') || '';
+
+    return res.json({
       status: 0,
       message: 'Sukses',
       data: {
@@ -223,13 +229,14 @@ router.get('/profile', authmiddleware, async (req, res) => {
     });
 
   } catch (err) {
-      console.error(err);
-      return res.status(500).json({
-        status: false,
-        message: 'Internal server error'
-      });
-    }
-  });
+    console.error(err);
+    return res.status(500).json({
+      status: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
 
 
 
