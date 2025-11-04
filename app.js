@@ -35,6 +35,9 @@ pool.getConnection()
   .catch(err => console.error("DB connection error:", err));
 
 
+console.log("ENV PORT VALUE:", process.env.PORT);
+
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server232 running on port ${PORT}`);
