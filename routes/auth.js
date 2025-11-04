@@ -212,12 +212,17 @@ router.get('/profile', authmiddleware, async (req, res) => {
       }
   
       return res.json({
-        status: 0,
-        message: 'Profile berhasil ditampilkan',
-        data: rows[0]
-      });
-  
-    } catch (err) {
+      status: 0,
+      message: 'Sukses',
+      data: {
+        email: rows[0].email,
+        first_name,
+        last_name,
+        profile_image: rows[0].profile_image || null
+      }
+    });
+
+  } catch (err) {
       console.error(err);
       return res.status(500).json({
         status: false,
