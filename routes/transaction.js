@@ -6,20 +6,8 @@ const { v4: uuidv4 } = require('uuid');
 
 const router = express.Router();
 
-/*
- Expected body for purchase:
- {
-   "service": "pulsa" | "voucher_game" | "other",
-   "provider_code": "something", // optional, depends on implementation
-   "amount": 50000,
-   "customer_number": "0812xxxx",
-   "price": 50000 // actual price to charge the wallet
- }
-*/
 
-// Create transaction (protected)
-
-
+// Transaction
 router.post('/transaction', authmiddleware, async (req, res) => {
   const conn = await pool.getConnection();
   console.log("REQ BODY:", req.body);
@@ -38,7 +26,7 @@ router.post('/transaction', authmiddleware, async (req, res) => {
 
     await conn.beginTransaction();
 
-    // Ambil service info
+    // ambil data service
     const [serviceRows] = await conn.execute(
       'SELECT service_code, service_name, service_tariff FROM services WHERE service_code = ?',
       [service_code]
@@ -56,7 +44,7 @@ router.post('/transaction', authmiddleware, async (req, res) => {
     const service = serviceRows[0];
     const amount = Number(service.service_tariff);
 
-    // Lock wallet
+    // cek wallet
     const [walletRows] = await conn.execute(
       'SELECT balance FROM wallets WHERE id_regis = ? FOR UPDATE',
       [id_regis]
@@ -128,7 +116,7 @@ router.post('/transaction', authmiddleware, async (req, res) => {
 });
 
 
-// Optional: get transaction detail
+// Transaction history
 router.get('/transaction/history', authmiddleware, async (req, res) => {
   const conn = await pool.getConnection();
   try {
