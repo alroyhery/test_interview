@@ -97,7 +97,7 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Cek field wajib
+    // cek field email
     if (!email) {
       return res.status(400).json({
         status: 102,
@@ -115,7 +115,7 @@ router.post('/login', async (req, res) => {
     }
     
 
-    // Validasi format email
+    // validasi format email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return res.status(400).json({
@@ -125,7 +125,7 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Password minimal 8 karakter
+    // password minimal 8 karakter
     if (password.length < 8) {
       return res.status(400).json({
         status: 103,
@@ -134,7 +134,7 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Cek user
+    // cek user di db
     const [rows] = await conn.execute(
       'SELECT id_regis, name, email, password FROM users WHERE email = ?',
       [email]
@@ -195,7 +195,7 @@ router.post('/login', async (req, res) => {
 router.get('/profile', authmiddleware, async (req, res) => {
   try {
     const conn = await pool.getConnection();
-    const { email } = req.user; // diambil dari token
+    const { email } = req.user; // dari token
 
     const [rows] = await conn.query(
       'SELECT id_regis, name, email, profile_image FROM users WHERE email = ? LIMIT 1',
@@ -211,7 +211,7 @@ router.get('/profile', authmiddleware, async (req, res) => {
       });
     }
 
-    // Pisahkan nama jadi first_name & last_name
+    
     const fullName = rows[0].name || '';
     const nameParts = fullName.split(' ');
     const first_name = nameParts[0] || '';
@@ -293,7 +293,7 @@ router.put('/profile/update', authmiddleware, async (req, res) => {
 
 
 
-  // Multer storage
+  // Multer storage gambar
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
       cb(null, 'uploads/profile'); 
