@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../db'); // sesuaikan path
+const pool = require('../db');
 
 router.get('/banner', async (req, res) => {
   try {
