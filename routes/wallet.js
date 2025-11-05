@@ -6,7 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 
 const router = express.Router();
 
-// Cek saldo (protected)
+// Balance
 router.get('/balance', authmiddleware, async (req, res) => {
   const conn = await pool.getConnection();
   try {
@@ -22,8 +22,7 @@ router.get('/balance', authmiddleware, async (req, res) => {
   }
 });
 
-// Topup (protected)
-// Body: { amount: number, reference: optional }
+// Topup 
 router.post('/topup', authmiddleware, async (req, res) => {
   const conn = await pool.getConnection();
   try {
@@ -63,7 +62,7 @@ router.post('/topup', authmiddleware, async (req, res) => {
       [newBalance, new Date(), id_regis]
     );
 
-    // Insert Topup Log
+    // Masukin ke log
     const topupId = uuidv4();
     await conn.execute(
       'INSERT INTO topups (topup_id, id_regis, amount, reference, created_at) VALUES (?, ?, ?, ?, ?)',
